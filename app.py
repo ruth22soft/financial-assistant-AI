@@ -24,6 +24,7 @@ except Exception:  # no secrets file: running locally
     pass
 
 from money_agent import config, db  # noqa: E402  (must come after the secrets are loaded)
+from money_agent import agent as agent_module  # noqa: E402
 from money_agent.agent import MoneyAgent
 from money_agent.errors import friendly_error, missing_key_message  # noqa: E402
 from money_agent.seed import seed  # noqa: E402
@@ -74,11 +75,37 @@ def init_state() -> None:
         ss.upload_key = 0   # changing this clears the upload box after a receipt is sent
 
 
+KEY_PAGE = "https://aistudio.google.com/apikey"
+
+
+def active_key() -> tuple[str | None, str]:
+    """Which key to use: the visitor's own (pasted in the sidebar) first, then the app owner's."""
+    own = (st.session_state.get("visitor_key") or "").strip()
+    if own:
+        return own, "visitor"
+    if config.api_key():
+        return config.api_key(), "shared"
+    return None, "none"
+
+
 def get_agent() -> MoneyAgent | None:
     ss = st.session_state
-    if ss.agent is None and config.api_key():
-        ss.agent = MoneyAgent(ss.ledger, on_tool_call=_record_action)
+    key, _ = active_key()
+    if key is None:
+        return None
+    if ss.agent is None:
+        ss.agent = MoneyAgent(ss.ledger, client=agent_module.make_client(key), on_tool_call=_record_action)
+    elif ss.get("agent_key") != key:  # the visitor added or changed their key: keep the chat, swap the key
+        ss.agent.client = agent_module.make_client(key)
+    ss.agent_key = key
     return ss.agent
+
+
+def no_key_message() -> str:
+    if config.PROVIDER != "gemini":
+        return missing_key_message()
+    return (f"To start, paste a free Gemini API key in the sidebar under **Your AI key**. "
+            f"You can get one in a minute at {KEY_PAGE} (sign in with Google, then click Create API key).")
 
 
 def _record_action(name: str, args: dict, output: str, is_error: bool) -> None:
@@ -91,26 +118,72 @@ def run_agent(user_text: str, call, image: bytes | None = None) -> None:
     ss.chat.append({"role": "user", "text": user_text, "image": image})
     agent = get_agent()
     ss.current_actions = []
+    shared = active_key()[1] == "shared"
     if agent is None:
-        reply = missing_key_message()
-    elif config.DEMO_MODE and ss.ai_requests >= config.DEMO_MAX_AI_REQUESTS:
-        reply = ("You've reached the limit of AI requests for this demo session. To keep exploring, run the "
-                 "project yourself from GitHub with your own free key.")
+        reply = no_key_message()
+    elif config.DEMO_MODE and shared and ss.ai_requests >= config.DEMO_MAX_AI_REQUESTS:
+        reply = ("You've used all the free demo requests for this session. Paste your own free Gemini key in "
+                 f"the sidebar under **Your AI key** to keep going (get one at {KEY_PAGE}).")
     else:
-        ss.ai_requests += 1
+        if shared:
+            ss.ai_requests += 1
         with st.spinner("Thinking..."):
             try:
                 reply = call(agent)
             except openai.OpenAIError as exc:
-                reply = friendly_error(exc) or f"Something went wrong: {exc}"
+                reply = explain(exc)
     ss.chat.append({"role": "assistant", "text": reply, "actions": list(ss.current_actions)})
     st.rerun()
 
 
 # ---------------------------------------------------------------- pieces of the page
+def render_key_box() -> None:
+    ss = st.session_state
+    st.header("Your AI key")
+    st.text_input("Gemini API key", type="password", key="visitor_key", placeholder="Paste your key (AIza...)",
+                  help="Free from Google AI Studio. Used only in this browser tab; never saved.")
+    _, source = active_key()
+    if source == "visitor":
+        st.caption("Using your key. It stays in this browser tab only: it isn't saved and no one else can see it.")
+        if st.button("Check my key", width="stretch"):
+            ss.key_check = check_key(active_key()[0])
+        if ss.get("key_check"):
+            ok, message = ss.key_check
+            (st.success if ok else st.error)(message)
+    elif source == "shared":
+        left = max(0, config.DEMO_MAX_AI_REQUESTS - ss.ai_requests) if config.DEMO_MODE else None
+        extra = f" ({left} requests left in this session)" if left is not None else ""
+        st.caption(f"Optional: the demo's shared key is being used{extra}. Paste your own to remove the limit.")
+    else:
+        st.caption("Needed to chat. It's free and takes about a minute.")
+    st.link_button("Get a free key", KEY_PAGE, width="stretch")
+
+
+def explain(exc: Exception) -> str:
+    """Plain-language error; a visitor's bad key gets advice about the sidebar, not the .env file."""
+    message = friendly_error(exc) or f"Something went wrong: {exc}"
+    if "API key was rejected" in message and active_key()[1] == "visitor":
+        return ("Google rejected that key. Copy it again from AI Studio (it usually starts with AIza) and paste "
+                "the whole key in the sidebar, with no spaces.")
+    return message
+
+
+def check_key(key: str) -> tuple[bool, str]:
+    """Send one tiny request with the visitor's key and report whether it works."""
+    try:
+        agent_module.make_client(key).chat.completions.create(
+            model=config.MODEL, messages=[{"role": "user", "content": "Reply with just OK."}])
+        return True, "Your key works."
+    except openai.OpenAIError as exc:
+        return False, explain(exc)
+
+
 def render_sidebar() -> None:
     ss = st.session_state
     with st.sidebar:
+        if config.PROVIDER == "gemini":
+            render_key_box()
+            st.divider()
         st.header("Add spending")
 
         st.subheader("Receipt photo")

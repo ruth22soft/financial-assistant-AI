@@ -119,7 +119,12 @@ Schedule the checks with `cron` (Linux/macOS) or Task Scheduler (Windows):
 
 4. Click **Deploy**.
 
-`MONEY_AGENT_DEMO` turns on public demo mode. Each visitor gets a private copy of the sample data that resets when they close the tab, and at most 30 AI requests per session, since your key pays for them. Use a free-tier key with billing turned off, so the worst case is hitting the free daily limit.
+`MONEY_AGENT_DEMO` turns on public demo mode. Each visitor gets a private copy of the sample data that resets when they close the tab.
+
+**Visitors can use their own free key.** The sidebar has a **Your AI key** box with a **Get a free key** button. A key pasted there is used only for that visitor's browser tab and is never saved. Your own `GEMINI_API_KEY` secret is optional:
+
+- **With it:** visitors can try the app straight away, up to 30 AI requests per session on your key, then they're asked for their own. Use a free-tier key with billing turned off, so the worst case is hitting the free daily limit.
+- **Without it:** every visitor pastes their own key before chatting, and your key is never used.
 
 ## Settings
 

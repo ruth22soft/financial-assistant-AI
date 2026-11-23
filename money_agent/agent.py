@@ -68,9 +68,12 @@ IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 
-def make_client() -> OpenAI:
-    """A client for the provider chosen in config.py. Retries automatically on rate limits."""
-    return OpenAI(api_key=config.api_key(), base_url=config.BASE_URL, max_retries=2, timeout=45)
+def make_client(api_key: str | None = None) -> OpenAI:
+    """A client for the provider chosen in config.py. Retries automatically on rate limits.
+
+    Pass api_key to use a specific key (the web app does this when a visitor brings their own).
+    """
+    return OpenAI(api_key=api_key or config.api_key(), base_url=config.BASE_URL, max_retries=2, timeout=45)
 
 
 class MoneyAgent:
