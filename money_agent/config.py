@@ -57,6 +57,11 @@ def api_key() -> str | None:
 # ---------------------------------------------------------------- app settings
 DB_PATH = Path(os.environ.get("MONEY_AGENT_DB", PROJECT_ROOT / "data" / "money.db"))
 
+# Public demo mode, for the deployed web app: every visitor gets a private copy of the sample
+# data that disappears when they close the tab, and a cap on AI requests (your key pays for them).
+DEMO_MODE = os.environ.get("MONEY_AGENT_DEMO", "").strip().lower() in ("1", "true", "yes")
+DEMO_MAX_AI_REQUESTS = int(os.environ.get("MONEY_AGENT_DEMO_MAX_REQUESTS", "30"))
+
 CURRENCY = "birr"
 
 # A category is flagged once it has used this share of its monthly limit.

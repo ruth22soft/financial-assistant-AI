@@ -106,6 +106,21 @@ Schedule the checks with `cron` (Linux/macOS) or Task Scheduler (Windows):
 0 18 * * 0  cd /path/to/financial-assistant-AI && .venv/bin/python -m money_agent weekly-summary
 ```
 
+## Deploy it free on Streamlit Community Cloud
+
+1. Sign in at [share.streamlit.io](https://share.streamlit.io) with GitHub and click **Create app**.
+2. Pick this repository, branch `main`, main file `app.py`.
+3. Under **Advanced settings → Secrets**, paste:
+
+   ```toml
+   GEMINI_API_KEY = "your-key"
+   MONEY_AGENT_DEMO = "true"
+   ```
+
+4. Click **Deploy**.
+
+`MONEY_AGENT_DEMO` turns on public demo mode. Each visitor gets a private copy of the sample data that resets when they close the tab, and at most 30 AI requests per session, since your key pays for them. Use a free-tier key with billing turned off, so the worst case is hitting the free daily limit.
+
 ## Settings
 
 Put these in `.env` or set them as environment variables.

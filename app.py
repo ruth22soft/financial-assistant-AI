@@ -6,16 +6,26 @@ Then open the address it prints (usually http://localhost:8501).
 from __future__ import annotations
 
 import html
+import os
 from datetime import date
 
 import openai
 import streamlit as st
 
-from money_agent import config, db
+# On Streamlit Community Cloud, settings live in the app's "Secrets" box. Copy them into the
+# environment before money_agent reads its settings. Locally, the .env file is used instead.
+try:
+    for _key, _value in st.secrets.items():
+        if isinstance(_value, (str, int, float, bool)):
+            os.environ.setdefault(_key, str(_value))
+except Exception:  # no secrets file: running locally
+    pass
+
+from money_agent import config, db  # noqa: E402  (must come after the secrets are loaded)
 from money_agent.agent import MoneyAgent
-from money_agent.errors import friendly_error, missing_key_message
-from money_agent.seed import seed
-from money_agent.tools import Ledger
+from money_agent.errors import friendly_error, missing_key_message  # noqa: E402
+from money_agent.seed import seed  # noqa: E402
+from money_agent.tools import Ledger  # noqa: E402
 
 st.set_page_config(page_title="Money Assistant", page_icon=":material/account_balance_wallet:", layout="wide")
 
@@ -51,7 +61,12 @@ st.markdown("""
 def init_state() -> None:
     ss = st.session_state
     if "ledger" not in ss:
-        ss.ledger = Ledger(db.connect(config.DB_PATH, check_same_thread=False))
+        if config.DEMO_MODE:  # a private, throwaway database for each visitor, pre-filled
+            ss.ledger = Ledger(db.connect(":memory:", check_same_thread=False))
+            seed(ss.ledger)
+        else:
+            ss.ledger = Ledger(db.connect(config.DB_PATH, check_same_thread=False))
+        ss.ai_requests = 0
         ss.chat = []        # what the page shows: {"role", "text", "actions", "image"}
         ss.agent = None     # created on first use, so the page works without a key
         ss.upload_key = 0   # changing this clears the upload box after a receipt is sent
@@ -76,7 +91,11 @@ def run_agent(user_text: str, call, image: bytes | None = None) -> None:
     ss.current_actions = []
     if agent is None:
         reply = missing_key_message()
+    elif config.DEMO_MODE and ss.ai_requests >= config.DEMO_MAX_AI_REQUESTS:
+        reply = ("You've reached the limit of AI requests for this demo session. To keep exploring, run the "
+                 "project yourself from GitHub with your own free key.")
     else:
+        ss.ai_requests += 1
         with st.spinner("Thinking..."):
             try:
                 reply = call(agent)
@@ -124,8 +143,13 @@ def render_sidebar() -> None:
             seed(ss.ledger, reset=True)
             ss.chat, ss.agent = [], None
             st.rerun()
-        st.caption(f"AI model: {config.MODEL} via {config.PROVIDER}. Data is stored on this computer in "
-                   f"{config.DB_PATH.name}. Account numbers are masked before anything is sent to the AI.")
+        if config.DEMO_MODE:
+            used = ss.ai_requests
+            st.caption(f"Demo session: {used} of {config.DEMO_MAX_AI_REQUESTS} AI requests used. "
+                       f"AI model: {config.MODEL}. Account numbers are masked before anything is sent to the AI.")
+        else:
+            st.caption(f"AI model: {config.MODEL} via {config.PROVIDER}. Data is stored on this computer in "
+                       f"{config.DB_PATH.name}. Account numbers are masked before anything is sent to the AI.")
 
 
 def render_chat() -> None:
@@ -215,6 +239,9 @@ init_state()
 st.title("Money Assistant")
 st.caption("An AI agent that tracks your expenses and helps you stay on budget. It reads, records and advises; "
            "it can never move money.")
+if config.DEMO_MODE:
+    st.info("**Demo:** you have your own copy of sample data, which resets when you close this tab. "
+            "Please don't enter real financial details.", icon=":material/science:")
 render_sidebar()
 left, right = st.columns([3, 2], gap="large")
 with left:
