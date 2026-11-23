@@ -16,8 +16,10 @@ import streamlit as st
 # environment before money_agent reads its settings. Locally, the .env file is used instead.
 try:
     for _key, _value in st.secrets.items():
-        if isinstance(_value, (str, int, float, bool)):
-            os.environ.setdefault(_key, str(_value))
+        _pairs = _value.items() if hasattr(_value, "items") else [(_key, _value)]  # also accept a [section]
+        for _k, _v in _pairs:
+            if isinstance(_v, (str, int, float, bool)):
+                os.environ.setdefault(_k, str(_v))
 except Exception:  # no secrets file: running locally
     pass
 
@@ -39,16 +41,16 @@ st.markdown("""
 <style>
   .block-container { padding-top: 2rem; }
   .meter-row { margin: 0 0 14px; }
-  .meter-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.92rem; }
+  .meter-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; font-size: 0.92rem; }
   .meter-head b { font-weight: 600; color: #141B36; }
   .meter-head span { color: #4B536F; font-variant-numeric: tabular-nums; }
   .meter-track { height: 8px; border-radius: 99px; margin: 6px 0 4px; overflow: hidden; }
   .meter-fill { height: 100%; border-radius: 99px; }
-  .meter-foot { display: flex; justify-content: space-between; font-size: 0.8rem; color: #4B536F; }
-  .status-badge { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: #141B36; }
+  .meter-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; font-size: 0.8rem; color: #4B536F; }
+  .status-badge { display: inline-flex; white-space: nowrap; align-items: center; gap: 5px; font-weight: 600; color: #141B36; }
   .status-dot { width: 16px; height: 16px; border-radius: 50%; color: #fff; font-size: 10px; line-height: 16px;
                 text-align: center; display: inline-block; }
-  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 4px 0 16px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(105px, 1fr)); gap: 12px; margin: 4px 0 16px; }
   .tile { background: #F4F6FA; border-radius: 10px; padding: 10px 12px; min-width: 0; }
   .tile-label { font-size: 0.78rem; color: #4B536F; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .tile-value { white-space: nowrap; font-size: 1.45rem; font-weight: 600; color: #141B36; font-variant-numeric: tabular-nums; }

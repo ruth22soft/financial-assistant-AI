@@ -46,5 +46,9 @@ def friendly_error(exc: Exception) -> str | None:
 
 
 def missing_key_message() -> str:
+    key = config.KEY_ENV or "MONEY_AGENT_API_KEY"
+    if str(config.PROJECT_ROOT).startswith("/mount/src"):  # running on Streamlit Community Cloud
+        return (f"No API key found. This online copy can't see your .env file. In Streamlit Cloud open "
+                f"Manage app → Settings → Secrets, add the line {key} = \"your-key\" and click Save.")
     return (f"No API key found. Get a free Gemini key at https://aistudio.google.com/apikey, then paste it "
-            f"into the file {config.PROJECT_ROOT / '.env'} after {config.KEY_ENV}= and save.")
+            f"into the file {config.PROJECT_ROOT / '.env'} after {key}= and save.")
